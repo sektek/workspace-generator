@@ -1,11 +1,11 @@
 {
   "name": "<%= packageName %>",
   "version": "1.0.0",
-  "description": "<%= projectDescription %>",
-  "author": "<%= author %>",
+  "description": <%- JSON.stringify(projectDescription ?? '') %>,
+  "author": <%- JSON.stringify(author ?? '') %>,
   "repository": {
     "type": "git",
-    "url": "git@github.com:sektek/<%= projectName %>.git"
+    "url": "git@github.com:sektek/<%= projectSlug %>.git"
   },
   "license": "<%= license %>",
   "private": <%= privatePackage %>,

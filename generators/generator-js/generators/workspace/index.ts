@@ -69,7 +69,7 @@ export class WorkspaceGenerator extends BaseGenerator<
       this.templatePath('package.json.ejs'),
       this.destinationPath('package.json'),
       {
-        projectName: this.appname,
+        projectSlug: this.projectSlug,
         author,
         license,
         privatePackage: isPrivate,

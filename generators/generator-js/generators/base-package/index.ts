@@ -33,7 +33,7 @@ export class BasePackageGenerator extends BaseGenerator<
       this.destinationPath('package.json'),
       {
         packageName: this.packageName,
-        projectName: this.appname,
+        projectSlug: this.projectSlug,
         projectDescription: this.description,
         entryPoint: language === 'typescript' ? 'dist/index.js' : 'index.js',
         license,
@@ -56,10 +56,9 @@ export class BasePackageGenerator extends BaseGenerator<
   }
 
   get packageName() {
-    const prefix = this.options.packageScope
-      ? `@${this.options.packageScope}/`
-      : '';
-    return `${prefix}${this.appname}`;
+    const scope = this.options.packageScope?.replace(/^@/, '');
+    const prefix = scope ? `@${scope}/` : '';
+    return `${prefix}${this.projectSlug}`;
   }
 }
 

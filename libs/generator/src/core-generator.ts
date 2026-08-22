@@ -1,3 +1,5 @@
+import { basename } from 'node:path';
+
 import Generator from 'yeoman-generator/typed';
 
 import { CoreConfig } from './types/core-config.js';
@@ -62,6 +64,20 @@ export abstract class CoreGenerator<
       },
     );
     this.registerPriorities(PRIORITY_ALIASES);
+  }
+
+  // Generator's own this.appname replaces every non-word, non-whitespace
+  // character (so "-"/"_") with a space, meant for human-readable text
+  // (README titles, etc.) — not safe for package names or URLs. Derived
+  // straight from the destination folder name rather than from appname,
+  // since appname's space substitution is lossy and can't be reversed.
+  get projectSlug(): string {
+    return basename(this.destinationRoot())
+      .toLowerCase()
+      .replaceAll(/[^a-z0-9]+/g, '-')
+      .split('-')
+      .filter(Boolean)
+      .join('-');
   }
 
   // These overloads mirror yeoman-generator's own composeWith overloads
