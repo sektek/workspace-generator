@@ -115,7 +115,7 @@ function isInteractive(yes: boolean | undefined): boolean {
 
 type CliOptions = {
   yes?: boolean;
-  skipInstall?: boolean;
+  install?: boolean;
   force?: boolean;
   dest: string;
   [schemaKey: string]: unknown;
@@ -161,7 +161,10 @@ export async function main(argv: string[]): Promise<void> {
     .description(`Run the ${namespace} generator`)
     .argument('<generator>', 'Generator to run, e.g. "js:app" or "base:readme"')
     .option('-y, --yes', 'Force automated mode even in an interactive terminal')
-    .option('--skip-install', 'Skip the package manager install step')
+    .option(
+      '--install',
+      'Run the package manager install step (skipped by default)',
+    )
     .option('--force', 'Overwrite files that already exist without prompting')
     .option('--dest <path>', 'Destination directory', process.cwd())
     .addHelpText(
@@ -172,7 +175,7 @@ export async function main(argv: string[]): Promise<void> {
   addSchemaOptions(program, namespace);
   program.parse(argv);
 
-  const { yes, skipInstall, force, dest, ...schemaFlags } =
+  const { yes, install, force, dest, ...schemaFlags } =
     program.opts<CliOptions>();
 
   // Only what the user actually typed (addSchemaOptions() doesn't set
@@ -181,9 +184,12 @@ export async function main(argv: string[]): Promise<void> {
     Object.entries(schemaFlags).filter(([, value]) => value !== undefined),
   );
 
-  const options = isInteractive(yes)
-    ? await runWizard(namespace, flagsGiven)
-    : resolve(namespace, { ...flagsGiven, skipInstall });
+  const options = {
+    ...(isInteractive(yes)
+      ? await runWizard(namespace, flagsGiven)
+      : resolve(namespace, flagsGiven)),
+    skipInstall: !install,
+  };
 
   await runGenerator(namespace, options, {
     destinationRoot: dest,
