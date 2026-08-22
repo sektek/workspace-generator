@@ -8,4 +8,4 @@ RUN npm install -g npm@latest && \
     npm ci && \
     npm run build
 
-ENTRYPOINT ["gen"]
+ENTRYPOINT ["/app/bin/gen"]

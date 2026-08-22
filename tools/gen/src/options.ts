@@ -5,13 +5,21 @@ import { type OptionSpec, schemaFor } from './schema.js';
 /**
  * Adds one commander `.option(...)` per entry in a namespace's schema.
  *
+ * Deliberately doesn't pass `spec.default` as commander's own default: if
+ * it did, `command.opts()` would report every schema key as "given" even
+ * when the user typed nothing, which would break the CLI's ability to
+ * tell "explicitly supplied via flag" apart from "left to prompt for" —
+ * exactly the distinction interactive mode needs to seed the wizard with
+ * only the flags a user actually gave (see `cli.ts`). `resolve()` below
+ * is the single place schema defaults actually get applied.
+ *
  * @param command - The commander command to add options to.
  * @param namespace - The generator namespace being run (e.g. `@sektek/js:app`).
  * @returns The same command, for chaining.
  */
 export function addSchemaOptions(command: Command, namespace: string): Command {
   for (const spec of schemaFor(namespace)) {
-    command.option(spec.flag, spec.prompt, spec.default as string | boolean);
+    command.option(spec.flag, spec.prompt);
   }
   return command;
 }

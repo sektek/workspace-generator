@@ -33,4 +33,14 @@ export default defineConfig([
       ],
     },
   },
+  {
+    // cli.ts's console output (list/usage/error text) is the actual
+    // product of a CLI, not debug leftovers — the repo-wide no-console
+    // rule exists to catch stray debugging output in library code, which
+    // doesn't apply here.
+    files: ['src/cli.ts'],
+    rules: {
+      'no-console': 'off',
+    },
+  },
 ]);
