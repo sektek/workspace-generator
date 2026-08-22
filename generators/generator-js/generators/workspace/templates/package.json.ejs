@@ -1,7 +1,7 @@
 {
   "name": "<%= projectSlug %>",
   "version": "1.0.0",
-  "author": "<%- author %>",
+  "author": <%- JSON.stringify(author ?? '') %>,
   "repository": {
     "type": "git",
     "url": "git@github.com:sektek/<%= projectSlug %>.git"

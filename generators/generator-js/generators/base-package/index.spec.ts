@@ -72,6 +72,18 @@ describe('@sektek/js:base-package', function () {
       expect(packageJson.author).to.equal('Edward Kelly <eddie@sektek.net>');
     });
 
+    it('JSON-escapes an author/description containing quotes and newlines', async function () {
+      const packageJson = await runIn('json-escape-test', {
+        language: 'javascript',
+        author: 'Edward "Eddie" Kelly <eddie@sektek.net>\nSecond line',
+        description: 'A "quoted" description',
+      });
+      expect(packageJson.author).to.equal(
+        'Edward "Eddie" Kelly <eddie@sektek.net>\nSecond line',
+      );
+      expect(packageJson.description).to.equal('A "quoted" description');
+    });
+
     it('uses a hyphenated, space-free slug in the repository url', async function () {
       const packageJson = await runIn('test-prj', { language: 'javascript' });
       expect(packageJson.repository.url).to.equal(
