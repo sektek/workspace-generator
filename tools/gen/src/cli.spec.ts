@@ -27,9 +27,15 @@ describe('resolveNamespace', function () {
     ).to.equal('@sektek/base:editorconfig');
   });
 
-  it('rejects a bare generator name with no package prefix as ambiguous', function () {
+  it('rejects a bare generator name that matches multiple packages as ambiguous', function () {
     expect(() => resolveNamespace('app', KNOWN_NAMESPACES)).to.throw(
       /ambiguous/,
+    );
+  });
+
+  it('rejects a bare generator name that matches only one package with a suggestion, not "ambiguous"', function () {
+    expect(() => resolveNamespace('editorconfig', KNOWN_NAMESPACES)).to.throw(
+      /Did you mean 'base:editorconfig'/,
     );
   });
 

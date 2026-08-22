@@ -7,13 +7,68 @@ import { REGISTRY } from './registry.js';
 import { runGenerator } from './run.js';
 import { runWizard } from './run-wizard.js';
 
-// The package prefix "js"/"base" resolve to — distinct from
+// Package aliases "js"/"base" resolve to — distinct from
 // CoreOptions.namespace (the --namespace flag, config-scoping value
 // written into generated projects).
 const PREFIX_ALIASES: Record<string, string> = {
   base: '@sektek/base',
   js: '@sektek/js',
 };
+
+/**
+ * The prefixes (`"base"`/`"js"`) whose package has a sub-generator named
+ * `name` — e.g. `["base"]` for `"editorconfig"`, `["base", "js"]` for
+ * `"app"`. Used to tell a genuinely ambiguous bare name apart from an
+ * unknown one that happens to share a name with a single generator.
+ *
+ * @param name - A bare sub-generator name, with no package prefix.
+ * @param knownNamespaces - Every namespace `REGISTRY` actually knows about.
+ * @returns The matching prefixes, if any.
+ */
+function prefixesFor(
+  name: string,
+  knownNamespaces: readonly string[],
+): string[] {
+  return knownNamespaces
+    .filter(ns => ns.split(':')[1] === name)
+    .map(
+      ns =>
+        Object.entries(PREFIX_ALIASES).find(
+          ([, pkg]) => pkg === ns.split(':')[0],
+        )?.[0],
+    )
+    .filter((prefix): prefix is string => prefix !== undefined);
+}
+
+/**
+ * Builds the error for a bare name that isn't a known package alias.
+ *
+ * @param input - The generator argument as typed on the command line.
+ * @param knownNamespaces - Every namespace `REGISTRY` actually knows about.
+ * @returns An error describing why `input` couldn't be resolved.
+ */
+function unknownPrefixError(
+  input: string,
+  knownNamespaces: readonly string[],
+): Error {
+  const matchingPrefixes = prefixesFor(input, knownNamespaces);
+
+  if (matchingPrefixes.length > 1) {
+    const options = matchingPrefixes.map(prefix => `'${prefix}:${input}'`);
+    return new Error(
+      `Generator '${input}' is ambiguous between packages: specify a prefix (${options.join(' or ')}).`,
+    );
+  }
+  if (matchingPrefixes.length === 1) {
+    return new Error(
+      `Unknown generator '${input}'. Did you mean '${matchingPrefixes[0]}:${input}'?`,
+    );
+  }
+
+  return new Error(
+    `Unknown generator '${input}'. Expected 'base', 'js', 'base:<name>', 'js:<name>', or a fully-qualified '@sektek/<pkg>:<name>' namespace. Run 'gen list' to see every available generator.`,
+  );
+}
 
 /**
  * Resolves a generator argument (e.g. "js", "js:workspace",
@@ -39,17 +94,7 @@ export function resolveNamespace(
     const alias = PREFIX_ALIASES[prefix];
 
     if (!alias) {
-      // Both @sektek/base and @sektek/js have an "app" generator, so a
-      // bare name matching a real sub-generator is ambiguous, not unknown.
-      const isAmbiguous =
-        colonIndex === -1 &&
-        knownNamespaces.some(ns => ns.split(':')[1] === input);
-
-      throw new Error(
-        isAmbiguous
-          ? `Generator '${input}' is ambiguous between packages: specify a prefix (e.g. 'base:${input}' or 'js:${input}').`
-          : `Unknown generator '${input}'. Expected 'base', 'js', 'base:<name>', 'js:<name>', or a fully-qualified '@sektek/<pkg>:<name>' namespace. Run 'gen list' to see every available generator.`,
-      );
+      throw unknownPrefixError(input, knownNamespaces);
     }
 
     const name = colonIndex === -1 ? 'app' : input.slice(colonIndex + 1);
@@ -135,7 +180,11 @@ export async function main(argv: string[]): Promise<void> {
     return;
   }
 
-  const generatorArg = rawArgs.find(arg => !arg.startsWith('-'));
+  // Must be the first token: scanning for "the first non-dash token"
+  // instead would grab an option's own value (e.g. "/tmp" out of
+  // "--dest /tmp js:app") whenever a flag precedes the generator.
+  const generatorArg =
+    rawArgs[0] && !rawArgs[0].startsWith('-') ? rawArgs[0] : undefined;
 
   // --help/-h alone falls through to commander below once a generator is
   // resolved, which shows that generator's schema-driven options instead.
@@ -178,10 +227,16 @@ export async function main(argv: string[]): Promise<void> {
   const { yes, install, force, dest, ...schemaFlags } =
     program.opts<CliOptions>();
 
-  // Only what the user actually typed (addSchemaOptions() doesn't set
-  // commander defaults, so an unset flag stays undefined here).
+  // Only what the user actually typed. Checking against undefined isn't
+  // enough: commander gives a negated flag like --no-private an implicit
+  // `true` default even with no explicit default passed to .option(), so
+  // an unset --no-private would otherwise look "given" as true.
+  // getOptionValueSource() distinguishes that implicit default from an
+  // actual CLI-provided value.
   const flagsGiven = Object.fromEntries(
-    Object.entries(schemaFlags).filter(([, value]) => value !== undefined),
+    Object.keys(schemaFlags)
+      .filter(key => program.getOptionValueSource(key) === 'cli')
+      .map(key => [key, schemaFlags[key]]),
   );
 
   const options = {
