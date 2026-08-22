@@ -2,10 +2,6 @@ import { expect } from 'chai';
 
 import { resolveNamespace } from './cli.js';
 
-// A representative slice of REGISTRY's real namespaces — enough to
-// exercise every alias case without depending on the built dist/ of
-// @sektek/generator-base and @sektek/generator-js (registry.spec.ts
-// already covers that these match REGISTRY exactly).
 const KNOWN_NAMESPACES = [
   '@sektek/base:app',
   '@sektek/base:editorconfig',

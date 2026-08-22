@@ -7,24 +7,19 @@ import { REGISTRY } from './registry.js';
 import { runGenerator } from './run.js';
 import { runWizard } from './run-wizard.js';
 
-// "js" -> "@sektek/base"/"@sektek/js": the *package* prefix, unrelated to
-// CoreOptions.namespace (the config-scoping value written into generated
-// projects, default 'sektek') — that stays a plain --namespace flag built
-// from the schema below, never this.
+// The package prefix "js"/"base" resolve to — distinct from
+// CoreOptions.namespace (the --namespace flag, config-scoping value
+// written into generated projects).
 const PREFIX_ALIASES: Record<string, string> = {
   base: '@sektek/base',
   js: '@sektek/js',
 };
 
 /**
- * Resolves a generator argument as typed on the command line (`"js"`,
- * `"js:workspace"`, or a fully-qualified `"@sektek/base:app"`) into a
- * namespace, validated against the given list of known namespaces.
- *
- * `yeoman-environment`'s own built-in aliasing
- * (`alias(/^([^:]+)$/, '$1:app')`) only handles single-segment names, not
- * our two-segment `@sektek/js:app`-style namespaces, so this is a
- * from-scratch resolver rather than a wrapper around it.
+ * Resolves a generator argument (e.g. "js", "js:workspace",
+ * "@sektek/base:app") into a namespace, validated against the known
+ * namespace list. From-scratch rather than yeoman-environment's own
+ * alias(), which only handles single-segment names.
  *
  * @param input - The generator argument as typed on the command line.
  * @param knownNamespaces - Every namespace `REGISTRY` actually knows about.
@@ -37,7 +32,6 @@ export function resolveNamespace(
   let namespace: string;
 
   if (input.startsWith('@')) {
-    // Already fully qualified, e.g. "@sektek/base:app".
     namespace = input;
   } else {
     const colonIndex = input.indexOf(':');
@@ -45,10 +39,8 @@ export function resolveNamespace(
     const alias = PREFIX_ALIASES[prefix];
 
     if (!alias) {
-      // A bare name with no package prefix (e.g. "app") is ambiguous when
-      // more than one package has a sub-generator by that name — both
-      // @sektek/base and @sektek/js do, for "app" — so give a more
-      // specific error than "unknown" when that's what happened.
+      // Both @sektek/base and @sektek/js have an "app" generator, so a
+      // bare name matching a real sub-generator is ambiguous, not unknown.
       const isAmbiguous =
         colonIndex === -1 &&
         knownNamespaces.some(ns => ns.split(':')[1] === input);
@@ -112,10 +104,7 @@ function printUsage(): void {
 }
 
 /**
- * True when the wizard should run: a real interactive terminal, and the
- * user hasn't forced automated mode with --yes. A non-TTY (piped, CI, or
- * Docker without `-it`) always falls back to automated mode regardless of
- * --yes, since the ink wizard can't render there.
+ * True when the wizard should run: an interactive terminal and no --yes.
  *
  * @param yes - Whether --yes/-y was given.
  * @returns Whether to run the interactive wizard.
@@ -148,10 +137,8 @@ export async function main(argv: string[]): Promise<void> {
 
   const generatorArg = rawArgs.find(arg => !arg.startsWith('-'));
 
-  // No generator given at all (including a bare --help/-h): print generic
-  // usage. Once a generator is given, --help/-h falls through to
-  // commander below instead, which prints that generator's full option
-  // list (built from its schema) rather than this generic summary.
+  // --help/-h alone falls through to commander below once a generator is
+  // resolved, which shows that generator's schema-driven options instead.
   if (!generatorArg) {
     printUsage();
     return;
@@ -188,8 +175,8 @@ export async function main(argv: string[]): Promise<void> {
   const { yes, skipInstall, force, dest, ...schemaFlags } =
     program.opts<CliOptions>();
 
-  // Only what the user actually typed — see addSchemaOptions()'s comment
-  // for why commander doesn't pre-fill these with schema defaults.
+  // Only what the user actually typed (addSchemaOptions() doesn't set
+  // commander defaults, so an unset flag stays undefined here).
   const flagsGiven = Object.fromEntries(
     Object.entries(schemaFlags).filter(([, value]) => value !== undefined),
   );
