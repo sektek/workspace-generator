@@ -5,29 +5,30 @@ import { type OptionSpec, schemaFor } from './schema.js';
 /**
  * Adds one commander `.option(...)` per entry in a namespace's schema.
  *
+ * Doesn't pass `spec.default` as commander's own default: `resolve()`
+ * below is the one place schema defaults get applied, so `command.opts()`
+ * only reports what a user actually typed — `cli.ts` depends on that to
+ * seed the interactive wizard with just the explicitly-given flags.
+ *
  * @param command - The commander command to add options to.
  * @param namespace - The generator namespace being run (e.g. `@sektek/js:app`).
  * @returns The same command, for chaining.
  */
 export function addSchemaOptions(command: Command, namespace: string): Command {
   for (const spec of schemaFor(namespace)) {
-    command.option(spec.flag, spec.prompt, spec.default as string | boolean);
+    command.option(spec.flag, spec.prompt);
   }
   return command;
 }
 
 /**
  * Resolves a namespace's options by folding schema defaults under whatever
- * flags were actually given, then validates that every `required` key
- * still has a value and every `select` value is one of its declared
- * `choices`. Throws one aggregated error listing every problem found,
- * rather than failing on the first.
+ * flags were actually given, then validates required keys and `select`
+ * choices, throwing one aggregated error for every problem found.
  *
  * @param namespace - The generator namespace being run (e.g. `@sektek/js:app`).
  * @param flagsGiven - Option values already supplied (CLI flags or wizard answers).
- * @param extraSpecs - Additional specs layered on top of `schemaFor(namespace)`;
- *   nothing in today's real schema is both `required` and default-less, so
- *   this is how tests exercise that validation path.
+ * @param extraSpecs - Specs layered on top of `schemaFor(namespace)`, for tests.
  * @returns The fully-resolved options object.
  */
 export function resolve(
