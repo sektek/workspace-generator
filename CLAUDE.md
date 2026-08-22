@@ -4,14 +4,17 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## What this is
 
-`@sektek/workspace-generator` — an npm workspace monorepo that builds a Yeoman-based project
-generator (`yo`) for scaffolding new SEKTEK projects. It is currently early-stage: several packages
-(e.g. `generators/generator-js`) are stubs with empty `index.ts`. The repo nominally has Nx wired up
-but Nx is intentionally not used here (see Workspace layout) — treat it as dead config, not tooling.
+`@sektek/workspace-generator` — an npm workspace monorepo that builds Yeoman-based generators
+(`generator-base`, `generator-js`) for scaffolding new SEKTEK projects, driven by a custom CLI
+(`tools/gen`, the `gen` command) rather than the stock `yo` — see Workspace layout. Only the root
+`index.ts` barrel files in `generator-base`/`generator-js` are stub placeholders; every sub-generator
+under each package's `generators/` directory is fully implemented (6 in `generator-base`, 8 in
+`generator-js`). The repo nominally has Nx wired up but Nx is intentionally not used here (see
+Workspace layout) — treat it as dead config, not tooling.
 
 ## Workspace layout
 
-npm workspaces defined in the root `package.json`: `generators/*`, `libs/*`. Each package
+npm workspaces defined in the root `package.json`: `generators/*`, `libs/*`, `tools/*`. Each package
 is an independently versioned, independently built TypeScript module with its own `package.json`,
 `tsconfig.json`/`tsconfig.build.json`, `.mocharc.cjs`, and `eslint.config.js` (mirroring the root
 configs).
@@ -19,7 +22,8 @@ configs).
 `nx.json` and the root `npm run build` (`nx run-many --target build`) are present but **do not use
 Nx** — build and test per package instead (see Commands below). Dependency order when building by
 hand: `libs/generator` first (everything else depends on it), then `libs/generator-test`, then
-`generators/generator-base` and `generators/generator-js`.
+`generators/generator-base` and `generators/generator-js`, then `tools/gen` (depends on both
+generator packages' built `dist/`).
 
 - **`libs/generator`** (`@sektek/generator`) — the foundation. Exports `CoreGenerator`, an abstract
   class extending `yeoman-generator`'s `Generator`. It applies workspace-wide defaults
@@ -33,13 +37,19 @@ hand: `libs/generator` first (everything else depends on it), then `libs/generat
 - **`libs/generator-test`** (`@sektek/generator-test`) — thin wrapper around `yeoman-test`, exporting
   a shared `helper` (a `YeomanTest` instance) and re-exporting `result`. All generator specs run
   through this `helper`, not `yeoman-test` directly.
-- **`generators/generator-base`** (`@sektek/generator-base`) — the actual base generator package
-  installed as a `yo` generator. `BaseGenerator` (in `lib/base-generator.ts`) extends `CoreGenerator`
-  and sets `package = '@sektek/base'`. Sub-generators live under `generators/<name>/index.ts`:
+- **`generators/generator-base`** (`@sektek/generator-base`) — the base generator package, driven by
+  `tools/gen` (or, in principle, still installable as a `yo` generator). `BaseGenerator` (in
+  `lib/base-generator.ts`) extends `CoreGenerator` and sets `package = '@sektek/base'`.
+  Sub-generators live under `generators/<name>/index.ts` (6 total):
   - `app` — the entrypoint (`taskInitializing` composes `editorconfig`, `gitconfig`, and `readme` in
     sequence via `this.composeWith(name, options, true)`).
   - `editorconfig`, `gitconfig`, `readme` — each a small `taskWriting()` that copies EJS templates
     from its local `templates/` directory via `this.fs.copyTpl(this.templatePath(...), this.destinationPath(...), data)`.
+  - `devcontainer` — writes `.devcontainer/Dockerfile` plus either a standalone or
+    docker-compose-based `devcontainer.json`, depending on a `default`/`workspace` profile option.
+  - `workspace` — composes `devcontainer`, `editorconfig`, `gitconfig`, and `readme` together and adds
+    `.vscode/settings.json`/`launch.json`; the root-level variant of `app` for a workspace-style
+    project rather than a single package.
 
   When adding a new sub-generator here, follow the existing pattern: extend `BaseGenerator<BaseOptions, BaseFeatures>`,
   set `DEFAULT_FEATURES = { unique: true }` merged with incoming features, implement lifecycle
@@ -48,8 +58,47 @@ hand: `libs/generator` first (everything else depends on it), then `libs/generat
   constructor registers a PascalCase alias for each built-in queue (see Generator wiring conventions
   below). Register it in `app/index.ts`'s `taskInitializing` and add its import at the top of that
   file (side-effect import registering the sub-generator).
-- **`generators/generator-js`** (`@sektek/generator-js`) — placeholder for a JS/TS project generator;
-  not yet implemented.
+- **`generators/generator-js`** (`@sektek/generator-js`) — the JS/TS project generator, layered on
+  top of `generator-base` (`BaseGenerator` here, in `lib/base-generator.ts`, extends `CoreGenerator`
+  directly and sets `package = '@sektek/js'`; its default options set `packageScope: 'sektek'`,
+  `author`, `license: 'UNLICENSED'`, `private: true`). Sub-generators live under
+  `generators/<name>/index.ts` (8 total):
+  - `app` — the entrypoint; composes `@sektek/base:app` (editorconfig/gitconfig/readme),
+    `@sektek/base:devcontainer`, `base-package`, `gitconfig`, `eslint`, `mocha`, and, when
+    `language: 'typescript'`, `typescript`.
+  - `base-package` — writes `package.json` (name, author, license, repository url, etc. — see the
+    `CoreGenerator#projectSlug` note in Known gaps for how the package name/repo url are derived) and,
+    for `language: 'javascript'`, a plain-JS entrypoint (`index.js`/`index.spec.js`).
+  - `gitconfig` — composes `@sektek/base:gitconfig` for the base `.gitignore`/`.gitattributes`, then
+    layers JS-specific `.gitignore` rules on top.
+  - `typescript` — writes `tsconfig.json`/`tsconfig.build.json` and a TS entrypoint (`index.ts`).
+  - `eslint` — writes `eslint.config.js`, composing `prettier`.
+  - `prettier` — writes `.prettierrc.js`/`.prettierignore`.
+  - `mocha` — writes `.mocharc.cjs` (and, for TypeScript, `.mocharc.min.cjs`/`.nycrc.json`).
+  - `workspace` — the root-level, npm-workspaces variant of `app`: composes `@sektek/base:workspace`,
+    `gitconfig`, and `eslint`; writes its own `package.json` (with a `workspaces` field),
+    `.mocharc.cjs`/`.npmrc`, and `apps/`/`libs/`/`tools/` placeholder directories.
+- **`tools/gen`** (`@sektek/gen`) — the custom CLI that replaces `yo`: drives `generator-base`/
+  `generator-js` directly via `yeoman-environment`, in either automated (CLI flags) or interactive
+  (an `ink` wizard) mode. Flat, one-file-per-concern layout under `src/`:
+  - `registry.ts` — `REGISTRY`, built from both packages' `manifest.ts` exports, and `registerAll()`,
+    which registers every namespace (not just user-invocable ones — `composeWith` chains reach
+    sub-generators no one runs directly) with a Yeoman `Environment` by on-disk path.
+  - `schema.ts` — `CORE_OPTIONS`/`JS_OPTIONS`/`schemaFor(namespace)`: the single declarative schema
+    both modes build their flags/prompts from, scoped per package family (`@sektek/base:*` vs
+    `@sektek/js:*`), not per sub-generator.
+  - `options.ts` — `addSchemaOptions()` (adds commander flags from the schema, deliberately without
+    commander's own defaults, so `resolve()` stays the one place defaults are applied) and
+    `resolve()` (folds defaults under given flags, validates `required` keys and `select` choices).
+  - `wizard.tsx`/`wizard-steps.ts`/`run-wizard.ts` — the interactive mode: `Wizard` steps through
+    `schemaFor(namespace)` one prompt at a time, skipping any key already given via a flag;
+    `wizard-steps.ts` holds the pure (non-ink) step-sequencing logic, unit-tested directly, since the
+    actual ink TTY rendering isn't practical to unit test.
+  - `run.ts` — `runGenerator()`, the one place either mode actually invokes Yeoman.
+  - `cli.ts`/`bin.ts` — `main(argv)` resolves the `<generator>` argument (own alias resolver, e.g.
+    `js` → `@sektek/js:app`; `yeoman-environment`'s built-in `alias()` only handles single-segment
+    names), picks automated vs. interactive based on `process.stdout.isTTY && process.stdin.isTTY`
+    (unless `--yes` forces automated), and calls `runGenerator()`.
 - **`templates/template-ts`** — a template project skeleton (its own package.json/tsconfig/etc.),
   intended as the boilerplate a generator scaffolds out, not a package that's built/tested itself.
 - **`third-party/`** — gitignored reference checkouts of `yeoman-generator` and `generator-jhipster`
@@ -97,15 +146,19 @@ Run from the repo root unless noted. Do not use the root `npm run build` script 
 - **Build a single package:** `npm run build --workspace=<pkg>` (e.g.
   `npm run build --workspace=@sektek/generator`), or `cd` into the package and run `npx tsc -p tsconfig.build.json`
 - **Build everything:** run the above for each package in dependency order — `libs/generator`,
-  `libs/generator-test`, `generators/generator-base`, `generators/generator-js`.
+  `libs/generator-test`, `generators/generator-base`, `generators/generator-js`, `tools/gen`.
 - **Lint a package:** `cd <package-dir> && npm run lint` (there is no root-level lint script yet)
 - **Run all tests:** tests are per-package (each has its own `.mocharc.cjs` and `test` script); run
   `cd <package-dir> && npm test`. Mocha config uses `tsx/esm` as the loader with BDD-style
   (`describe`/`it`) specs matched by `**/*.spec.[jt]s`.
 - **Run a single test file:** `cd <package-dir> && npx mocha <path-to-file>.spec.ts`
 - **Coverage:** `cd <package-dir> && npm run test:cover` (runs `c8 npm run test`)
-- **Try the generator locally:** `bin/gen` (runs `npx yo`) after building, or via Docker: the root
-  `Dockerfile` builds the whole workspace and sets `ENTRYPOINT ["gen"]`.
+- **Try the generator locally:** after building `generator-base`, `generator-js`, and `tools/gen` (in
+  that order), `bin/gen <generator>` (e.g. `bin/gen js:app`) or `bin/gen list` to see every available
+  namespace — resolves `tools/gen`'s built `dist/src/bin.js` by absolute path, since nothing in this
+  repo puts `gen` on `$PATH`. For source-mode iteration on `tools/gen` itself without a build step:
+  `npm run dev --workspace=@sektek/gen -- <args>`. Via Docker: the root `Dockerfile` builds every
+  workspace and sets `ENTRYPOINT ["/app/bin/gen"]`.
 
 ## Test conventions
 
@@ -121,7 +174,15 @@ the class instance. See `generators/generator-base/generators/*/index.spec.ts` f
 - No root-level `lint` or `test` script — these are per-workspace only (see `TODO.md`: "Need to figure
   out how to test generators in TypeScript"). The only root script (`build`) shells out to Nx and
   should not be used — see Workspace layout.
-- `generators/generator-js` and `generators/generator-base/index.ts` are empty stubs.
+- `generators/generator-base/index.ts` and `generators/generator-js/index.ts` (the root barrel files)
+  are empty stubs — nothing imports them; each package's real entrypoint is its `app` sub-generator,
+  found via `generators/app/index.ts`, not the package root.
+- **`generator-base`'s and `generator-js`'s `build` scripts run a `copy:templates` step
+  (`tsx scripts/copy-templates.ts`) after `tsc`** — `tsc` only emits `.js`/`.d.ts`, so without this
+  step every `.ejs` template under `generators/<name>/templates/` would be missing from `dist/` and
+  any generator calling `this.fs.copyTpl(this.templatePath(...), ...)` (nearly all of them) would
+  throw `ENOENT` at runtime against the built package. Non-obvious enough to catch out a future
+  change to either package's `tsconfig.build.json`/`package.json` build step.
 - `@sektek/generator-test`'s shared `helper` has nothing registered with it by default — a bare
   `helper.run('editorconfig')` or `helper.run('@sektek/base:editorconfig')` won't resolve. Specs invoke
   their own generator by absolute path (`join(__dirname, 'index.js')`); a spec that needs `composeWith`
@@ -147,4 +208,12 @@ the class instance. See `generators/generator-base/generators/*/index.spec.ts` f
   `@sektek:registry=https://npm.pkg.github.com` plus a `read:packages`-scoped token in `.npmrc`
   (`//npm.pkg.github.com/:_authToken=...`) or it 401s. There's no local vendored fallback for these
   anymore — they used to be checked out under `tools/eslint-plugin`/`tools/prettier-config` as npm
-  workspace packages, but that's gone; `tools/` is unused now.
+  workspace packages, but that's gone. `tools/` now holds `tools/gen` instead (see Workspace layout).
+- **`Generator`'s own `this.appname` isn't safe for identifiers.** It's derived by replacing every run
+  of non-word, non-whitespace characters (so `-`/`_`) with a *space* — meant for human-readable text
+  (README titles, mocha `describe()` labels), not package names or URLs: a destination directory like
+  `my-project` yields `appname === 'my project'`. `CoreGenerator#projectSlug` (`libs/generator`) is the
+  identifier-safe alternative — a lowercase, hyphen-separated slug derived straight from the
+  destination folder's basename — and is what `generator-js`'s `base-package`/`workspace` templates use
+  for `package.json`'s `"name"` and the git repository url. Reach for `projectSlug`, not `appname`, any
+  time a template needs an identifier rather than display text.
