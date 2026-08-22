@@ -1,3 +1,8 @@
+// This file's console output (list/usage/error text) is the actual
+// product of a CLI, not debug leftovers — the repo-wide no-console rule
+// exists to catch stray debugging output in library code, which doesn't
+// apply here.
+/* eslint-disable no-console */
 import { Command } from 'commander';
 import chalk from 'chalk';
 
