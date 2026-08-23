@@ -22,25 +22,35 @@ export function addSchemaOptions(command: Command, namespace: string): Command {
 }
 
 /**
- * Resolves a namespace's options by folding schema defaults under whatever
- * flags were actually given, then validates required keys and `select`
+ * Resolves a namespace's options by folding schema defaults, then
+ * config-file defaults, then whatever flags were actually given (each
+ * layer overriding the last), then validates required keys and `select`
  * choices, throwing one aggregated error for every problem found.
+ *
+ * `configDefaults` keys with no matching schema entry are ignored — a
+ * shared config file may carry sections irrelevant to this run's namespace.
  *
  * @param namespace - The generator namespace being run (e.g. `@sektek/js:app`).
  * @param flagsGiven - Option values already supplied (CLI flags or wizard answers).
+ * @param configDefaults - Values resolved via `resolveConfigDefaults()`.
  * @param extraSpecs - Specs layered on top of `schemaFor(namespace)`, for tests.
  * @returns The fully-resolved options object.
  */
 export function resolve(
   namespace: string,
   flagsGiven: Record<string, unknown>,
+  configDefaults: Record<string, unknown> = {},
   extraSpecs: OptionSpec[] = [],
 ): Record<string, unknown> {
   const schema = [...schemaFor(namespace), ...extraSpecs];
   const defaults = Object.fromEntries(
     schema.map(spec => [spec.key, spec.default]),
   );
-  const resolved = { ...defaults, ...flagsGiven };
+  const schemaKeys = new Set(schema.map(spec => spec.key));
+  const configLayer = Object.fromEntries(
+    Object.entries(configDefaults).filter(([key]) => schemaKeys.has(key)),
+  );
+  const resolved = { ...defaults, ...configLayer, ...flagsGiven };
 
   const errors: string[] = [];
 

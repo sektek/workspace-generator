@@ -30,7 +30,7 @@ describe('resolve', function () {
 
   it('throws one aggregated error listing every missing required option', function () {
     expect(() =>
-      resolve('@sektek/base:app', {}, [
+      resolve('@sektek/base:app', {}, {}, [
         {
           key: 'apiKey',
           flag: '--api-key <value>',
@@ -59,5 +59,35 @@ describe('resolve', function () {
     const resolved = resolve('@sektek/js:app', { language: 'typescript' });
 
     expect(resolved.language).to.equal('typescript');
+  });
+
+  it('lets a config default override the schema default', function () {
+    const resolved = resolve(
+      '@sektek/base:app',
+      {},
+      { profile: 'from config' },
+    );
+
+    expect(resolved.profile).to.equal('from config');
+  });
+
+  it('lets a given flag override a config default', function () {
+    const resolved = resolve(
+      '@sektek/base:app',
+      { profile: 'from flag' },
+      { profile: 'from config' },
+    );
+
+    expect(resolved.profile).to.equal('from flag');
+  });
+
+  it('ignores a config default with no matching schema key', function () {
+    const resolved = resolve(
+      '@sektek/base:app',
+      {},
+      { notInSchema: 'whatever' },
+    );
+
+    expect(resolved).to.not.have.property('notInSchema');
   });
 });

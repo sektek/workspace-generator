@@ -1,9 +1,12 @@
 /* eslint-disable no-console */
+import { homedir } from 'node:os';
+
 import { Command } from 'commander';
 import chalk from 'chalk';
 
 import { addSchemaOptions, resolve } from './options.js';
 import { REGISTRY } from './registry.js';
+import { resolveConfigDefaults } from './config.js';
 import { runGenerator } from './run.js';
 import { runWizard } from './run-wizard.js';
 
@@ -276,10 +279,15 @@ export async function main(argv: string[]): Promise<void> {
       .map(key => [key, schemaFlags[key]]),
   );
 
+  const configDefaults = await resolveConfigDefaults(namespace, {
+    cwd: process.cwd(),
+    homeDir: homedir(),
+  });
+
   const options = {
     ...(isInteractive(yes)
-      ? await runWizard(namespace, flagsGiven)
-      : resolve(namespace, flagsGiven)),
+      ? await runWizard(namespace, flagsGiven, configDefaults)
+      : resolve(namespace, flagsGiven, configDefaults)),
     skipInstall: !install,
   };
 
