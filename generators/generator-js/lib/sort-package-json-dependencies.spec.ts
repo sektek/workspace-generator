@@ -3,10 +3,7 @@ import { helper } from '@sektek/generator-test';
 
 import { BaseGenerator } from './base-generator.js';
 
-// '0x' vs '@types/node' is deliberate: plain `.sort()` (UTF-16 code units)
-// and `localeCompare('en')` (what real npm uses) disagree on this pair, so
-// this fixture actually exercises the comparator choice rather than passing
-// either way.
+// '0x' vs '@types/node' is deliberate: plain .sort() and localeCompare('en') disagree on this pair.
 class SortFixtureGenerator extends BaseGenerator {
   taskWriting() {
     this.dependencies = {

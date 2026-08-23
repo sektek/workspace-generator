@@ -136,9 +136,6 @@ describe('@sektek/js:app', function () {
     expect(Object.keys(pkg.devDependencies)).to.deep.equal(
       sorted(pkg.devDependencies),
     );
-    // eslint composition order adds 'eslint' before its own
-    // '@sektek/eslint-plugin' devDependency — asserting the scoped package
-    // now comes first confirms the sort actually ran.
     const devDepKeys = Object.keys(pkg.devDependencies);
     expect(devDepKeys.indexOf('@sektek/eslint-plugin')).to.be.lessThan(
       devDepKeys.indexOf('eslint'),

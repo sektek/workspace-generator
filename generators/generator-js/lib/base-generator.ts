@@ -25,9 +25,6 @@ export class BaseGenerator<
   constructor(args: string[], options: O, features?: F) {
     super(args, { ...DEFAULT_OPTIONS, ...options }, features);
 
-    // once: true instead of a plain taskTransform() method, so this runs
-    // exactly once across however many composed BaseGenerator instances
-    // there are, not once per instance.
     this.queueTask({
       method: () => sortPackageJsonDependencies(this),
       taskName: 'sortPackageJsonDependencies',

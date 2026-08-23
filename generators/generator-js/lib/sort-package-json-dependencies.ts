@@ -3,12 +3,10 @@ import type { BaseGenerator } from './base-generator.js';
 type PackageDependencies = Record<string, string>;
 
 /**
- * Rebuilds a dependencies map with its keys re-inserted in sorted order.
- * Sorted with `localeCompare('en')`, matching what a real
- * `npm install --save[-dev]` writes (see \@npmcli/package-json's update-dependencies.js).
+ * Matches npm's own sort (@npmcli/package-json's update-dependencies.js), not a plain default .sort().
  *
- * @param deps - The dependencies map to sort.
- * @returns A new map with the same entries, sorted by key.
+ * @param deps - Unsorted.
+ * @returns Sorted copy.
  */
 function sortDependencies(deps: PackageDependencies): PackageDependencies {
   return Object.fromEntries(
@@ -19,15 +17,9 @@ function sortDependencies(deps: PackageDependencies): PackageDependencies {
 }
 
 /**
- * Re-sorts an already-written package.json's `dependencies`/`devDependencies`
- * alphabetically and rewrites the file.
+ * Must run at transform priority (after writing) to see every composed generator's merged dependencies.
  *
- * Meant to run at `transform` priority: Yeoman runs a priority queue to
- * completion, across every composed generator, before the next one starts,
- * so by then every `writing`-priority `writeDependencies()` call has already
- * merged its keys in, regardless of composition order.
- *
- * @param generator - The generator instance owning the package.json to sort.
+ * @param generator - Owns the package.json to sort.
  */
 export function sortPackageJsonDependencies(generator: BaseGenerator): void {
   const packageJsonPath = generator.destinationPath('package.json');
