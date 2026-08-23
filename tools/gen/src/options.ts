@@ -48,7 +48,13 @@ export function resolve(
   );
   const schemaKeys = new Set(schema.map(spec => spec.key));
   const configLayer = Object.fromEntries(
-    Object.entries(configDefaults).filter(([key]) => schemaKeys.has(key)),
+    Object.entries(configDefaults).filter(
+      // A JS config file can define a key as undefined (e.g. derived from
+      // an unset env var) — excluding those keeps this consistent with
+      // withConfigDefaults() (schema.ts), which already treats an
+      // undefined config value as "no override".
+      ([key, value]) => schemaKeys.has(key) && value !== undefined,
+    ),
   );
   const resolved = { ...defaults, ...configLayer, ...flagsGiven };
 

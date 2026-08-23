@@ -90,4 +90,10 @@ describe('resolve', function () {
 
     expect(resolved).to.not.have.property('notInSchema');
   });
+
+  it('does not let an explicitly undefined config value override the schema default', function () {
+    const resolved = resolve('@sektek/base:app', {}, { profile: undefined });
+
+    expect(resolved.profile).to.equal('default');
+  });
 });
