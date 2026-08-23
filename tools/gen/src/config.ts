@@ -25,7 +25,13 @@ export async function resolveConfigDefaults(
   { cwd, homeDir }: { cwd: string; homeDir: string },
 ): Promise<ConfigDefaults> {
   const { family, generator } = parseNamespace(namespace);
-  const result: ConfigDefaults = {};
+  // Null-prototype + Object.hasOwn: a config file's own keys (parsed by
+  // JSON.parse/yaml's parser, which define them directly rather than going
+  // through a setter) are safe, but building this object up via bracket
+  // assignment is not — a key literally named `__proto__` would otherwise
+  // invoke Object.prototype's inherited setter and repoint this object's
+  // own prototype instead of just storing a value under that key.
+  const result: ConfigDefaults = Object.create(null) as ConfigDefaults;
 
   for (const dir of configSearchPaths(cwd, homeDir)) {
     const config = await loadConfig(dir);
@@ -36,7 +42,7 @@ export async function resolveConfigDefaults(
     for (const [key, value] of Object.entries(
       effectiveDefaults(config, family, generator),
     )) {
-      if (!(key in result)) {
+      if (!Object.hasOwn(result, key)) {
         result[key] = value;
       }
     }
@@ -56,16 +62,23 @@ function parseNamespace(namespace: string): {
   family: string;
   generator: string;
 } {
-  const [pkg, generator = ''] = namespace.split(':');
-  const family = pkg.split('/')[1] ?? '';
+  const [pkg, generator] = namespace.split(':');
+  const family = pkg?.split('/')[1];
+  if (!family || !generator) {
+    throw new Error(
+      `resolveConfigDefaults(): expected a resolved namespace like "@sektek/js:app", got ${JSON.stringify(namespace)}`,
+    );
+  }
   return { family, generator };
 }
 
 /**
  * Merges one directory's config into the effective defaults for a single
- * namespace: every top-level key except `family`'s own section (that's
- * structural nesting, not a default value), overridden by whatever's
- * namespaced under `family.generator`, if anything.
+ * namespace: every top-level key whose value isn't itself a plain object
+ * (every real option value is a scalar — a nested object can only be
+ * namespace-section structure, `family`'s own or another's, never a
+ * default value), overridden by whatever's namespaced under
+ * `family.generator`, if anything.
  *
  * @param config - One directory's parsed config file.
  * @param family - The current run's package family (`js`/`base`).
@@ -77,12 +90,14 @@ function effectiveDefaults(
   family: string,
   generator: string,
 ): ConfigObject {
-  const topLevel: ConfigObject = {};
-  for (const [key, value] of Object.entries(config)) {
-    if (key !== family) {
-      topLevel[key] = value;
-    }
-  }
+  // Object.fromEntries defines properties directly rather than assigning
+  // through them, so a `__proto__` key here can't hijack this object's
+  // prototype the way `topLevel[key] = value` could.
+  const topLevel = Object.fromEntries(
+    Object.entries(config).filter(
+      ([, value]) => asConfigObject(value) === undefined,
+    ),
+  );
 
   const namespaced = asConfigObject(
     asConfigObject(config[family])?.[generator],

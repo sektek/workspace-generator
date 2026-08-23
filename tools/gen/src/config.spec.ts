@@ -138,4 +138,82 @@ describe('resolveConfigDefaults', function () {
 
     expect(defaults).to.deep.equal({});
   });
+
+  it("does not leak another family's section through as a literal default value", async function () {
+    writeConfig(root, {
+      license: 'MIT',
+      base: { app: { license: 'UNLICENSED' } },
+    });
+
+    const defaults = await resolveConfigDefaults('@sektek/js:app', {
+      cwd: root,
+      homeDir: home,
+    });
+
+    expect(defaults).to.not.have.property('base');
+  });
+
+  it("does not leak the current family's own section through as a literal default value", async function () {
+    writeConfig(root, {
+      license: 'MIT',
+      js: { app: { license: 'UNLICENSED' } },
+    });
+
+    const defaults = await resolveConfigDefaults('@sektek/js:app', {
+      cwd: root,
+      homeDir: home,
+    });
+
+    expect(defaults).to.not.have.property('js');
+  });
+
+  it('treats a `__proto__` config key as a plain value, not a prototype override', async function () {
+    // Nested under js.app (an object-shaped namespaced value), and via a
+    // computed property name in the object literal below: a literal
+    // `__proto__: value` key in an object *literal* sets the prototype at
+    // construction time instead of creating an own property, which would
+    // silently write `{}` for that section and defeat this test's point.
+    writeConfig(root, { js: { app: { ['__proto__']: { polluted: true } } } });
+
+    const defaults = await resolveConfigDefaults('@sektek/js:app', {
+      cwd: root,
+      homeDir: home,
+    });
+
+    expect(Object.getPrototypeOf(defaults)).to.satisfy(
+      (proto: unknown) => proto === Object.prototype || proto === null,
+    );
+    expect((globalThis as { polluted?: unknown }).polluted).to.be.undefined;
+    expect((defaults as Record<string, unknown>).__proto__).to.deep.equal({
+      polluted: true,
+    });
+  });
+
+  it('rejects a namespace missing the "family:generator" shape', async function () {
+    await resolveConfigDefaults('not-a-namespace', {
+      cwd: root,
+      homeDir: home,
+    }).then(
+      () => {
+        throw new Error('expected resolveConfigDefaults to reject');
+      },
+      error => {
+        expect((error as Error).message).to.include('not-a-namespace');
+      },
+    );
+  });
+
+  it('rejects a namespace missing the "@scope/family" shape', async function () {
+    await resolveConfigDefaults('sektek:app', {
+      cwd: root,
+      homeDir: home,
+    }).then(
+      () => {
+        throw new Error('expected resolveConfigDefaults to reject');
+      },
+      error => {
+        expect((error as Error).message).to.include('sektek:app');
+      },
+    );
+  });
 });
