@@ -129,6 +129,54 @@ describe('loadConfig', function () {
     );
   });
 
+  it('rejects a config file whose top-level value is an array', async function () {
+    writeFileSync(join(dir, 'gen.config.json'), '["a", "b"]');
+
+    await loadConfig(dir).then(
+      () => {
+        throw new Error('expected loadConfig to reject');
+      },
+      error => {
+        expect(((error as Error).cause as Error).message).to.include(
+          'expected the config to export a plain object',
+        );
+      },
+    );
+  });
+
+  it('parses a gen.config.js file using CommonJS "module.exports" under an ambient "type": "module"', async function () {
+    // Without a format-mismatch retry that also covers this direction,
+    // `module`/`exports` aren't defined under real ESM evaluation and this
+    // throws an uncaught ReferenceError instead of parsing correctly.
+    writeFileSync(join(dir, 'package.json'), '{ "type": "module" }');
+    writeFileSync(
+      join(dir, 'gen.config.js'),
+      'module.exports = { profile: "cjs-under-esm" };\n',
+    );
+
+    expect(await loadConfig(dir)).to.deep.equal({ profile: 'cjs-under-esm' });
+  });
+
+  it("memoizes by real path, not the caller's literal spelling", async function () {
+    const file = join(dir, 'gen.config.json');
+    writeFileSync(file, JSON.stringify({ value: 'first' }));
+
+    const viaRealPath = await loadConfig(dir);
+    const viaDifferentSpelling = await loadConfig(
+      join(dir, '..', dir.split('/').pop()!),
+    );
+
+    // Mutating on disk after both reads confirms a third call (through
+    // either spelling) still hits the same memoized entry, not a second,
+    // independently-cached read.
+    writeFileSync(file, JSON.stringify({ value: 'second' }));
+    const third = await loadConfig(dir);
+
+    expect(viaRealPath).to.deep.equal({ value: 'first' });
+    expect(viaDifferentSpelling).to.equal(viaRealPath);
+    expect(third).to.equal(viaRealPath);
+  });
+
   it("only reads/parses a directory's config file once per process (memoized)", async function () {
     const file = join(dir, 'gen.config.json');
     writeFileSync(file, JSON.stringify({ value: 'first' }));
