@@ -1,5 +1,5 @@
 import { dirname, join } from 'path';
-import { mkdirSync, writeFileSync } from 'fs';
+import { mkdtempSync, writeFileSync } from 'fs';
 import { fileURLToPath } from 'url';
 import { tmpdir } from 'os';
 
@@ -55,12 +55,9 @@ describe('@sektek/js:eslint', function () {
 
   describe('run standalone against an existing project', function () {
     it('still sorts the merged dependencies/devDependencies', async function () {
-      const destinationRoot = join(
-        tmpdir(),
-        'sektek-eslint-standalone-spec',
-        `${Date.now()}`,
+      const destinationRoot = mkdtempSync(
+        join(tmpdir(), 'sektek-eslint-standalone-spec-'),
       );
-      mkdirSync(destinationRoot, { recursive: true });
       writeFileSync(
         join(destinationRoot, 'package.json'),
         JSON.stringify({
