@@ -1,10 +1,15 @@
-import { Box, Text } from 'ink';
+import { Box, Static, Text } from 'ink';
 import { useEffect, useState } from 'react';
 import SelectInput from 'ink-select-input';
 import TextInput from 'ink-text-input';
 
 import { choicesFor, defaultIndexFor, pendingSpecs } from './wizard-steps.js';
 import type { OptionSpec } from './schema.js';
+
+type CompletedStep = {
+  key: string;
+  text: string;
+};
 
 export type WizardProps = {
   schema: OptionSpec[];
@@ -24,13 +29,15 @@ export type WizardProps = {
  * @param props.schema - The full option schema for the namespace being run.
  * @param props.seed - Option values already supplied (e.g. via CLI flags).
  * @param props.onComplete - Called once with the fully-resolved answers.
- * @returns The wizard's current prompt, or nothing once every step is answered.
+ * @returns The scrolled-back answers plus the current prompt, or just the
+ * scrollback once every step is answered.
  */
 export function Wizard({ schema, seed, onComplete }: WizardProps) {
   const steps = pendingSpecs(schema, seed);
   const [stepIndex, setStepIndex] = useState(0);
   const [answers, setAnswers] = useState<Record<string, unknown>>(seed);
   const [textValue, setTextValue] = useState('');
+  const [completed, setCompleted] = useState<CompletedStep[]>([]);
 
   const done = stepIndex >= steps.length;
 
@@ -43,34 +50,66 @@ export function Wizard({ schema, seed, onComplete }: WizardProps) {
   }, [done, answers, onComplete]);
 
   if (done) {
-    return null;
+    return (
+      <Static items={completed}>
+        {item => <Text key={item.key}>{item.text}</Text>}
+      </Static>
+    );
   }
 
   const spec = steps[stepIndex];
 
   const advance = (value: unknown) => {
     setAnswers(prev => ({ ...prev, [spec.key]: value }));
+    setCompleted(prev => [
+      ...prev,
+      { key: spec.key, text: `${spec.prompt}: ${displayValue(spec, value)}` },
+    ]);
     setTextValue('');
     setStepIndex(prev => prev + 1);
   };
 
   return (
     <Box flexDirection="column">
-      <Text>{spec.prompt}</Text>
+      <Static items={completed}>
+        {item => <Text key={item.key}>{item.text}</Text>}
+      </Static>
       {renderInput(spec, textValue, setTextValue, advance)}
     </Box>
   );
 }
 
 /**
- * Renders `<TextInput>` for a `text` spec, `<SelectInput>` (pre-selected
- * at the schema's default) for `select`/`boolean`.
+ * The human-readable form of an answered step's value, for scrollback:
+ * `select`/`boolean` resolve back to their choice `label` (e.g. `true` ->
+ * `"Yes"`) rather than showing the raw stored value.
+ *
+ * @param spec - The option spec that was just answered.
+ * @param value - The value `advance()` recorded for it.
+ * @returns The text to display for this answer in the `<Static>` scrollback.
+ */
+function displayValue(spec: OptionSpec, value: unknown): string {
+  if (spec.kind === 'select' || spec.kind === 'boolean') {
+    const choice = choicesFor(spec).find(c => c.value === value);
+    if (choice) {
+      return choice.label;
+    }
+  }
+  return String(value);
+}
+
+/**
+ * Renders the prompt label plus `<TextInput>` on one row for a `text`
+ * spec (the label doubling as the row's leading text, with the schema
+ * default shown as ghost placeholder text), or the prompt label above
+ * `<SelectInput>` (pre-selected at the schema's default) for
+ * `select`/`boolean`.
  *
  * @param spec - The option spec currently being prompted for.
  * @param textValue - The text input's current (uncommitted) value.
  * @param setTextValue - Updates the text input's current value.
  * @param advance - Records the answered value and moves to the next step.
- * @returns The input component for this step.
+ * @returns The prompt + input for this step.
  */
 function renderInput(
   spec: OptionSpec,
@@ -80,20 +119,29 @@ function renderInput(
 ) {
   if (spec.kind === 'text') {
     return (
-      <TextInput
-        value={textValue}
-        onChange={setTextValue}
-        onSubmit={value => advance(value === '' ? spec.default : value)}
-      />
+      <Box>
+        <Text>{spec.prompt}: </Text>
+        <TextInput
+          value={textValue}
+          onChange={setTextValue}
+          placeholder={
+            spec.default !== undefined ? String(spec.default) : undefined
+          }
+          onSubmit={value => advance(value === '' ? spec.default : value)}
+        />
+      </Box>
     );
   }
 
   const choices = choicesFor(spec);
   return (
-    <SelectInput
-      items={choices}
-      initialIndex={defaultIndexFor(spec, choices)}
-      onSelect={item => advance(item.value)}
-    />
+    <Box flexDirection="column">
+      <Text>{spec.prompt}</Text>
+      <SelectInput
+        items={choices}
+        initialIndex={defaultIndexFor(spec, choices)}
+        onSelect={item => advance(item.value)}
+      />
+    </Box>
   );
 }
