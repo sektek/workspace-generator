@@ -18,8 +18,9 @@ const PREFIX_ALIASES: Record<string, string> = {
 /**
  * The prefixes (`"base"`/`"js"`) whose package has a sub-generator named
  * `name` — e.g. `["base"]` for `"editorconfig"`, `["base", "js"]` for
- * `"app"`. Used to tell a genuinely ambiguous bare name apart from an
- * unknown one that happens to share a name with a single generator.
+ * `"app"`. A bare name never resolves through this any more (it always
+ * means `@sektek/base:<name>`) — this only powers the "did you mean
+ * 'js:<name>'" hint on an unknown-bare-name error.
  *
  * @param name - A bare sub-generator name, with no package prefix.
  * @param knownNamespaces - Every namespace `REGISTRY` actually knows about.
@@ -41,40 +42,50 @@ function prefixesFor(
 }
 
 /**
- * Builds the error for a bare name that isn't a known package alias.
+ * Builds the error for a `<prefix>:<name>` input whose prefix isn't a known
+ * package alias.
  *
  * @param input - The generator argument as typed on the command line.
- * @param knownNamespaces - Every namespace `REGISTRY` actually knows about.
  * @returns An error describing why `input` couldn't be resolved.
  */
-function unknownPrefixError(
-  input: string,
+function unknownPrefixError(input: string): Error {
+  return new Error(
+    `Unknown generator '${input}'. Expected 'base', 'js', 'base:<name>', 'js:<name>', or a fully-qualified '@sektek/<pkg>:<name>' namespace — a bare '<name>' with no prefix defaults to '@sektek/base:<name>'. Run 'gen list' to see every available generator.`,
+  );
+}
+
+/**
+ * Builds the error for a bare name with no colon that isn't `js`/`base` and
+ * doesn't resolve to a `@sektek/base:<name>` generator. Hints at `js:<name>`
+ * when that namespace exists — a message nicety only, never a fallback: the
+ * caller still has to type the prefix themselves to actually run it.
+ *
+ * @param name - The bare generator name as typed on the command line.
+ * @param knownNamespaces - Every namespace `REGISTRY` actually knows about.
+ * @returns An error describing why `name` couldn't be resolved.
+ */
+function unknownBareNameError(
+  name: string,
   knownNamespaces: readonly string[],
 ): Error {
-  const matchingPrefixes = prefixesFor(input, knownNamespaces);
-
-  if (matchingPrefixes.length > 1) {
-    const options = matchingPrefixes.map(prefix => `'${prefix}:${input}'`);
-    return new Error(
-      `Generator '${input}' is ambiguous between packages: specify a prefix (${options.join(' or ')}).`,
-    );
-  }
-  if (matchingPrefixes.length === 1) {
-    return new Error(
-      `Unknown generator '${input}'. Did you mean '${matchingPrefixes[0]}:${input}'?`,
-    );
-  }
+  const hint = prefixesFor(name, knownNamespaces).includes('js')
+    ? ` Did you mean 'js:${name}'?`
+    : '';
 
   return new Error(
-    `Unknown generator '${input}'. Expected 'base', 'js', 'base:<name>', 'js:<name>', or a fully-qualified '@sektek/<pkg>:<name>' namespace. Run 'gen list' to see every available generator.`,
+    `Unknown generator '${name}'.${hint} Run 'gen list' to see every available generator.`,
   );
 }
 
 /**
  * Resolves a generator argument (e.g. "js", "js:workspace",
- * "@sektek/base:app") into a namespace, validated against the known
- * namespace list. From-scratch rather than yeoman-environment's own
+ * "@sektek/base:app", "gitconfig") into a namespace, validated against the
+ * known namespace list. From-scratch rather than yeoman-environment's own
  * alias(), which only handles single-segment names.
+ *
+ * A bare name with no prefix always means `@sektek/base:<name>` (matching
+ * how `yo` used to default to `generator-base`) — it never falls back to
+ * `@sektek/js` even when only `js` has a matching generator.
  *
  * @param input - The generator argument as typed on the command line.
  * @param knownNamespaces - Every namespace `REGISTRY` actually knows about.
@@ -84,23 +95,45 @@ export function resolveNamespace(
   input: string,
   knownNamespaces: readonly string[],
 ): string {
-  let namespace: string;
-
   if (input.startsWith('@')) {
-    namespace = input;
-  } else {
-    const colonIndex = input.indexOf(':');
-    const prefix = colonIndex === -1 ? input : input.slice(0, colonIndex);
-    const alias = PREFIX_ALIASES[prefix];
-
-    if (!alias) {
-      throw unknownPrefixError(input, knownNamespaces);
-    }
-
-    const name = colonIndex === -1 ? 'app' : input.slice(colonIndex + 1);
-    namespace = `${alias}:${name}`;
+    return validateNamespace(input, knownNamespaces);
   }
 
+  const colonIndex = input.indexOf(':');
+
+  if (colonIndex === -1) {
+    if (Object.hasOwn(PREFIX_ALIASES, input)) {
+      return validateNamespace(`${PREFIX_ALIASES[input]}:app`, knownNamespaces);
+    }
+
+    const namespace = `${PREFIX_ALIASES.base}:${input}`;
+    if (!knownNamespaces.includes(namespace)) {
+      throw unknownBareNameError(input, knownNamespaces);
+    }
+    return namespace;
+  }
+
+  const prefix = input.slice(0, colonIndex);
+  const alias = PREFIX_ALIASES[prefix];
+  if (!alias) {
+    throw unknownPrefixError(input);
+  }
+
+  const name = input.slice(colonIndex + 1);
+  return validateNamespace(`${alias}:${name}`, knownNamespaces);
+}
+
+/**
+ * Validates a fully-resolved namespace against the known namespace list.
+ *
+ * @param namespace - The resolved namespace to validate.
+ * @param knownNamespaces - Every namespace `REGISTRY` actually knows about.
+ * @returns `namespace`, unchanged.
+ */
+function validateNamespace(
+  namespace: string,
+  knownNamespaces: readonly string[],
+): string {
   if (!knownNamespaces.includes(namespace)) {
     throw new Error(
       `Unknown generator '${namespace}'. Run 'gen list' to see every available generator.`,
@@ -140,9 +173,13 @@ function printUsage(): void {
       'Usage: gen <generator> [options]',
       '       gen list',
       '',
+      "A bare '<name>' with no prefix defaults to '@sektek/base:<name>';",
+      "use 'js:<name>' to reach a @sektek/js generator instead.",
+      '',
       'Examples:',
       '  $ gen list',
       '  $ gen js:app --yes --language typescript --dest ./my-project',
+      '  $ gen readme',
       '  $ gen base:readme',
     ].join('\n'),
   );

@@ -5,8 +5,11 @@ import { resolveNamespace } from './cli.js';
 const KNOWN_NAMESPACES = [
   '@sektek/base:app',
   '@sektek/base:editorconfig',
+  '@sektek/base:gitconfig',
   '@sektek/base:workspace',
   '@sektek/js:app',
+  '@sektek/js:eslint',
+  '@sektek/js:gitconfig',
   '@sektek/js:workspace',
 ];
 
@@ -27,15 +30,35 @@ describe('resolveNamespace', function () {
     ).to.equal('@sektek/base:editorconfig');
   });
 
-  it('rejects a bare generator name that matches multiple packages as ambiguous', function () {
-    expect(() => resolveNamespace('app', KNOWN_NAMESPACES)).to.throw(
-      /ambiguous/,
+  it('resolves a bare name unique to base', function () {
+    expect(resolveNamespace('editorconfig', KNOWN_NAMESPACES)).to.equal(
+      '@sektek/base:editorconfig',
     );
   });
 
-  it('rejects a bare generator name that matches only one package with a suggestion, not "ambiguous"', function () {
-    expect(() => resolveNamespace('editorconfig', KNOWN_NAMESPACES)).to.throw(
-      /Did you mean 'base:editorconfig'/,
+  it('resolves a bare name that exists in both base and js to base silently', function () {
+    expect(resolveNamespace('gitconfig', KNOWN_NAMESPACES)).to.equal(
+      '@sektek/base:gitconfig',
+    );
+  });
+
+  it('rejects a bare name that exists only in js, hinting at the js: prefix', function () {
+    expect(() => resolveNamespace('eslint', KNOWN_NAMESPACES)).to.throw(
+      /Did you mean 'js:eslint'/,
+    );
+  });
+
+  it('rejects a bare name that exists in neither package with a generic message', function () {
+    expect(() => resolveNamespace('nonexistent', KNOWN_NAMESPACES)).to.throw(
+      /^Unknown generator 'nonexistent'\. Run 'gen list'/,
+    );
+  });
+
+  it('rejects a bare name that collides with an inherited Object.prototype property', function () {
+    // `input in PREFIX_ALIASES` would match 'toString' via the prototype
+    // chain even though it's not an own key, resolving to 'undefined:app'.
+    expect(() => resolveNamespace('toString', KNOWN_NAMESPACES)).to.throw(
+      /^Unknown generator 'toString'\. Run 'gen list'/,
     );
   });
 
@@ -45,10 +68,10 @@ describe('resolveNamespace', function () {
     );
   });
 
-  it('rejects an unknown bare word that matches no known alias or generator name', function () {
-    expect(() => resolveNamespace('nonexistent', KNOWN_NAMESPACES)).to.throw(
-      /Unknown generator/,
-    );
+  it('rejects an unknown prefix', function () {
+    expect(() =>
+      resolveNamespace('bogus:editorconfig', KNOWN_NAMESPACES),
+    ).to.throw(/Unknown generator 'bogus:editorconfig'\. Expected/);
   });
 
   it('rejects an unknown fully-qualified namespace', function () {
