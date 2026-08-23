@@ -40,6 +40,7 @@ export function Wizard({ schema, seed, onComplete }: WizardProps) {
   const [completed, setCompleted] = useState<CompletedStep[]>([]);
 
   const done = stepIndex >= steps.length;
+  const spec = done ? undefined : steps[stepIndex];
 
   // answers/onComplete are in the deps to avoid a stale closure; the
   // `if (done)` guard makes every earlier re-invocation a no-op.
@@ -49,17 +50,10 @@ export function Wizard({ schema, seed, onComplete }: WizardProps) {
     }
   }, [done, answers, onComplete]);
 
-  if (done) {
-    return (
-      <Static items={completed}>
-        {item => <Text key={item.key}>{item.text}</Text>}
-      </Static>
-    );
-  }
-
-  const spec = steps[stepIndex];
-
   const advance = (value: unknown) => {
+    if (!spec) {
+      return;
+    }
     setAnswers(prev => ({ ...prev, [spec.key]: value }));
     setCompleted(prev => [
       ...prev,
@@ -69,12 +63,16 @@ export function Wizard({ schema, seed, onComplete }: WizardProps) {
     setStepIndex(prev => prev + 1);
   };
 
+  // Same root shape (a <Box> wrapping <Static>) whether or not a step is
+  // still pending — swapping <Static> itself in and out as the root element
+  // would remount it, losing the items it's already printed and reprinting
+  // the whole scrollback once the wizard finishes.
   return (
     <Box flexDirection="column">
       <Static items={completed}>
         {item => <Text key={item.key}>{item.text}</Text>}
       </Static>
-      {renderInput(spec, textValue, setTextValue, advance)}
+      {spec && renderInput(spec, textValue, setTextValue, advance)}
     </Box>
   );
 }
@@ -95,7 +93,7 @@ function displayValue(spec: OptionSpec, value: unknown): string {
       return choice.label;
     }
   }
-  return String(value);
+  return value === undefined || value === null ? '' : String(value);
 }
 
 /**
