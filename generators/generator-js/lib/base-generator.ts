@@ -4,6 +4,7 @@ import latestVersion from 'latest-version';
 import { BaseConfig } from './types/base-config.js';
 import { BaseFeatures } from './types/base-features.js';
 import { BaseOptions } from './types/base-options.js';
+import { sortPackageJsonDependencies } from './sort-package-json-dependencies.js';
 
 const DEFAULT_OPTIONS: Partial<BaseOptions> = {
   packageScope: 'sektek',
@@ -23,6 +24,13 @@ export class BaseGenerator<
 
   constructor(args: string[], options: O, features?: F) {
     super(args, { ...DEFAULT_OPTIONS, ...options }, features);
+
+    this.queueTask({
+      method: () => sortPackageJsonDependencies(this),
+      taskName: 'sortPackageJsonDependencies',
+      queueName: 'transform',
+      once: true,
+    });
   }
 
   async addDependency(name: string, version?: string) {

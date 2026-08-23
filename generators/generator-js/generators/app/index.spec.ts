@@ -123,4 +123,22 @@ describe('@sektek/js:app', function () {
     const { fs } = await run({ language: 'javascript' });
     expect(fs.exists('tsconfig.json')).to.be.false;
   });
+
+  it('sorts merged package.json dependencies/devDependencies alphabetically', async function () {
+    const { fs } = await run({ language: 'typescript' });
+    const pkg = JSON.parse(fs.read('package.json'));
+    const sorted = (obj: Record<string, string>) =>
+      [...Object.keys(obj)].sort((a, b) => a.localeCompare(b, 'en'));
+
+    expect(Object.keys(pkg.dependencies)).to.deep.equal(
+      sorted(pkg.dependencies),
+    );
+    expect(Object.keys(pkg.devDependencies)).to.deep.equal(
+      sorted(pkg.devDependencies),
+    );
+    const devDepKeys = Object.keys(pkg.devDependencies);
+    expect(devDepKeys.indexOf('@sektek/eslint-plugin')).to.be.lessThan(
+      devDepKeys.indexOf('eslint'),
+    );
+  });
 });

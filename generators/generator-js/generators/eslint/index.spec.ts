@@ -1,5 +1,7 @@
 import { dirname, join } from 'path';
+import { mkdtempSync, writeFileSync } from 'fs';
 import { fileURLToPath } from 'url';
+import { tmpdir } from 'os';
 
 import { expect } from 'chai';
 import { helper } from '@sektek/generator-test';
@@ -48,6 +50,36 @@ describe('@sektek/js:eslint', function () {
       expect(fs.read('eslint.config.js')).to.include(
         'sektek.configs.typescript',
       );
+    });
+  });
+
+  describe('run standalone against an existing project', function () {
+    it('still sorts the merged dependencies/devDependencies', async function () {
+      const destinationRoot = mkdtempSync(
+        join(tmpdir(), 'sektek-eslint-standalone-spec-'),
+      );
+      writeFileSync(
+        join(destinationRoot, 'package.json'),
+        JSON.stringify({
+          name: 'existing-project',
+          dependencies: {},
+          devDependencies: { zod: '^3.0.0', mocha: '^10.0.0' },
+        }),
+      );
+
+      const { fs } = await run({
+        language: 'javascript',
+        destinationRoot,
+      });
+      const pkg = JSON.parse(fs.read(join(destinationRoot, 'package.json')));
+
+      expect(Object.keys(pkg.devDependencies)).to.deep.equal(
+        [...Object.keys(pkg.devDependencies)].sort((a, b) =>
+          a.localeCompare(b, 'en'),
+        ),
+      );
+      expect(Object.keys(pkg.devDependencies)).to.include('mocha');
+      expect(Object.keys(pkg.devDependencies)).to.include('eslint');
     });
   });
 });
