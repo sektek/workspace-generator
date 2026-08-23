@@ -24,6 +24,23 @@ export class BaseGenerator<
 
   constructor(args: string[], options: O, features?: F) {
     super(args, { ...DEFAULT_OPTIONS, ...options }, features);
+
+    // Queued imperatively with `once: true` rather than as a plain
+    // taskTransform() method: every JS sub-generator extends this class,
+    // so a declarative task<QueueName> method would run once per composed
+    // instance. `once` dedupes by taskName within the queue (regardless of
+    // which generator instance queues it), so this runs exactly once even
+    // when several composed generators each reach this constructor —
+    // whichever gets here first wins, and by the time it fires, every
+    // writing-priority writeDependencies() call has already run (Yeoman
+    // runs a priority queue to completion, across every composed
+    // generator, before the next one starts).
+    this.queueTask({
+      method: () => sortPackageJsonDependencies(this),
+      taskName: 'sortPackageJsonDependencies',
+      queueName: 'transform',
+      once: true,
+    });
   }
 
   async addDependency(name: string, version?: string) {
@@ -49,14 +66,6 @@ export class BaseGenerator<
       dependencies,
       devDependencies,
     });
-  }
-
-  // Here rather than only on @sektek/js:app/workspace so a standalone run
-  // (e.g. `gen js:eslint --dest <existing-project>`) still ends up sorted,
-  // not just a composed one. Sorting is idempotent, so composed generators
-  // each re-running it is a harmless no-op past the first.
-  taskTransform() {
-    sortPackageJsonDependencies(this);
   }
 }
 

@@ -2,7 +2,6 @@ import { expect } from 'chai';
 import { helper } from '@sektek/generator-test';
 
 import { BaseGenerator } from './base-generator.js';
-import { sortPackageJsonDependencies } from './sort-package-json-dependencies.js';
 
 // '0x' vs '@types/node' is deliberate: plain `.sort()` (UTF-16 code units)
 // and `localeCompare('en')` (what real npm uses) disagree on this pair, so
@@ -21,10 +20,6 @@ class SortFixtureGenerator extends BaseGenerator {
       '@types/node': '^1.0.0',
     };
     this.writeDependencies();
-  }
-
-  taskTransform() {
-    sortPackageJsonDependencies(this);
   }
 }
 
