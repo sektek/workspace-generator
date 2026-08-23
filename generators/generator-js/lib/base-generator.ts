@@ -25,16 +25,9 @@ export class BaseGenerator<
   constructor(args: string[], options: O, features?: F) {
     super(args, { ...DEFAULT_OPTIONS, ...options }, features);
 
-    // Queued imperatively with `once: true` rather than as a plain
-    // taskTransform() method: every JS sub-generator extends this class,
-    // so a declarative task<QueueName> method would run once per composed
-    // instance. `once` dedupes by taskName within the queue (regardless of
-    // which generator instance queues it), so this runs exactly once even
-    // when several composed generators each reach this constructor —
-    // whichever gets here first wins, and by the time it fires, every
-    // writing-priority writeDependencies() call has already run (Yeoman
-    // runs a priority queue to completion, across every composed
-    // generator, before the next one starts).
+    // once: true instead of a plain taskTransform() method, so this runs
+    // exactly once across however many composed BaseGenerator instances
+    // there are, not once per instance.
     this.queueTask({
       method: () => sortPackageJsonDependencies(this),
       taskName: 'sortPackageJsonDependencies',
