@@ -4,8 +4,8 @@ type PackageDependencies = Record<string, string>;
 
 /**
  * Rebuilds a dependencies map with its keys re-inserted in sorted order.
- * Plain default `.sort()` (no `localeCompare`), matching what a real
- * `npm install --save[-dev]` writes.
+ * Sorted with `localeCompare('en')`, matching what a real
+ * `npm install --save[-dev]` writes (see \@npmcli/package-json's update-dependencies.js).
  *
  * @param deps - The dependencies map to sort.
  * @returns A new map with the same entries, sorted by key.
@@ -13,7 +13,7 @@ type PackageDependencies = Record<string, string>;
 function sortDependencies(deps: PackageDependencies): PackageDependencies {
   return Object.fromEntries(
     Object.keys(deps)
-      .sort()
+      .sort((a, b) => a.localeCompare(b, 'en'))
       .map(name => [name, deps[name]]),
   );
 }
