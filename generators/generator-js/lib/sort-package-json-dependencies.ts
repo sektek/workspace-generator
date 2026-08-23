@@ -1,4 +1,4 @@
-import { BaseGenerator } from './base-generator.js';
+import type { BaseGenerator } from './base-generator.js';
 
 type PackageDependencies = Record<string, string>;
 
