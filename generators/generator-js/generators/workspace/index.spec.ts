@@ -131,4 +131,29 @@ describe('@sektek/js:workspace', function () {
       expect(fs.exists('tsconfig.json')).to.be.false;
     });
   });
+
+  it('sorts merged package.json dependencies/devDependencies alphabetically', async function () {
+    // taskDefault adds c8/mocha/typescript/tsx directly, then eslint (which
+    // composes prettier) adds more devDependencies on top — composition
+    // order is not alphabetical (e.g. typescript/tsx land before
+    // eslint/@sektek/eslint-plugin), exercising the taskTransform() sort
+    // pass against that real merge.
+    const { fs } = await run({ language: 'typescript' });
+    const pkg = JSON.parse(fs.read('package.json'));
+
+    expect(Object.keys(pkg.dependencies ?? {})).to.deep.equal(
+      [...Object.keys(pkg.dependencies ?? {})].sort(),
+    );
+    expect(Object.keys(pkg.devDependencies)).to.deep.equal(
+      [...Object.keys(pkg.devDependencies)].sort(),
+    );
+    // Sanity check: composition order adds 'eslint' before its own
+    // '@sektek/eslint-plugin' devDependency, so if the array below shows the
+    // scoped package first, the sort pass actually ran rather than the
+    // assertions above vacuously passing on already-sorted input.
+    const devDepKeys = Object.keys(pkg.devDependencies);
+    expect(devDepKeys.indexOf('@sektek/eslint-plugin')).to.be.lessThan(
+      devDepKeys.indexOf('eslint'),
+    );
+  });
 });
