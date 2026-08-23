@@ -22,13 +22,10 @@ function sortDependencies(deps: PackageDependencies): PackageDependencies {
  * Re-sorts an already-written package.json's `dependencies`/`devDependencies`
  * alphabetically and rewrites the file.
  *
- * Composed sub-generators each call `BaseGenerator#writeDependencies()`
- * during the shared `writing` priority, in composition order, so
- * package.json's dependencies/devDependencies accumulate unsorted. Yeoman
- * runs a priority to completion across every composed generator before the
- * next one starts, so calling this at `transform` priority (after `writing`)
- * is guaranteed to see the fully-merged result regardless of composition
- * order.
+ * Meant to run at `transform` priority: Yeoman runs a priority queue to
+ * completion, across every composed generator, before the next one starts,
+ * so by then every `writing`-priority `writeDependencies()` call has already
+ * merged its keys in, regardless of composition order.
  *
  * @param generator - The generator instance owning the package.json to sort.
  */

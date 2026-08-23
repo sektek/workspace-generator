@@ -51,18 +51,10 @@ export class BaseGenerator<
     });
   }
 
-  // Every JS sub-generator extends this class, whether composed under
-  // @sektek/js:app/workspace or run standalone against an existing
-  // project (e.g. `gen js:eslint --dest <existing-project>`) — sorting
-  // here rather than only on the two "root" composers means a
-  // standalone run's writeDependencies() call still ends up sorted.
-  // Yeoman runs a priority to completion, across every composed
-  // generator, before the next one starts, so by the time any instance's
-  // taskTransform fires, every composed generator's writing-priority
-  // writeDependencies() call (including this one's own) has already run.
-  // Sorting is idempotent, so when several composed generators each
-  // extend this class, the redundant re-sorts after the first are cheap
-  // no-ops rather than a correctness problem.
+  // Here rather than only on @sektek/js:app/workspace so a standalone run
+  // (e.g. `gen js:eslint --dest <existing-project>`) still ends up sorted,
+  // not just a composed one. Sorting is idempotent, so composed generators
+  // each re-running it is a harmless no-op past the first.
   taskTransform() {
     sortPackageJsonDependencies(this);
   }
