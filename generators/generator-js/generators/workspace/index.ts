@@ -5,7 +5,6 @@ import { BaseConfig } from '../../lib/types/base-config.js';
 import { BaseFeatures } from '../../lib/types/base-features.js';
 import { BaseGenerator } from '../../lib/base-generator.js';
 import { BaseOptions } from '../../lib/types/base-options.js';
-import { sortPackageJsonDependencies } from '../../lib/sort-package-json-dependencies.js';
 
 const DEFAULT_FEATURES: Partial<BaseFeatures> = {
   unique: true,
@@ -120,14 +119,6 @@ export class WorkspaceGenerator extends BaseGenerator<
     );
 
     this.writeDependencies();
-  }
-
-  // Runs at `transform` priority, after every composed generator's `writing`
-  // priority (including eslint's own writeDependencies() call) has
-  // completed, so dependencies/devDependencies are fully merged before
-  // sorting.
-  taskTransform() {
-    sortPackageJsonDependencies(this);
   }
 }
 

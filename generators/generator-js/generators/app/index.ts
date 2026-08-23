@@ -8,7 +8,6 @@ import { BaseConfig } from '../../lib/types/base-config.js';
 import { BaseFeatures } from '../../lib/types/base-features.js';
 import { BaseGenerator } from '../../lib/base-generator.js';
 import { BaseOptions } from '../../lib/types/base-options.js';
-import { sortPackageJsonDependencies } from '../../lib/sort-package-json-dependencies.js';
 
 const DEFAULT_FEATURES: Partial<BaseFeatures> = {
   unique: true,
@@ -42,14 +41,6 @@ export class AppGenerator extends BaseGenerator<
 
     await this.composeWith('eslint', options, true);
     await this.composeWith('mocha', options, true);
-  }
-
-  // Runs at `transform` priority, after every composed generator's `writing`
-  // priority (including base-package/eslint/mocha/typescript's own
-  // writeDependencies() calls) has completed, so dependencies/devDependencies
-  // are fully merged before sorting.
-  taskTransform() {
-    sortPackageJsonDependencies(this);
   }
 }
 

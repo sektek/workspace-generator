@@ -1,5 +1,7 @@
 import { dirname, join } from 'path';
+import { mkdirSync, writeFileSync } from 'fs';
 import { fileURLToPath } from 'url';
+import { tmpdir } from 'os';
 
 import { expect } from 'chai';
 import { helper } from '@sektek/generator-test';
@@ -48,6 +50,45 @@ describe('@sektek/js:eslint', function () {
       expect(fs.read('eslint.config.js')).to.include(
         'sektek.configs.typescript',
       );
+    });
+  });
+
+  describe('run standalone against an existing project', function () {
+    // eslint is only ever composed under @sektek/js:app/workspace in this
+    // repo's own generators, but the CLI lets it run standalone too (e.g.
+    // `gen js:eslint --dest <existing-project>`) — package.json sorting
+    // must not depend on being composed under one of those two "roots".
+    it('still sorts the merged dependencies/devDependencies', async function () {
+      const destinationRoot = join(
+        tmpdir(),
+        'sektek-eslint-standalone-spec',
+        `${Date.now()}`,
+      );
+      mkdirSync(destinationRoot, { recursive: true });
+      writeFileSync(
+        join(destinationRoot, 'package.json'),
+        JSON.stringify({
+          name: 'existing-project',
+          dependencies: {},
+          devDependencies: { zod: '^3.0.0', mocha: '^10.0.0' },
+        }),
+      );
+
+      const { fs } = await run({
+        language: 'javascript',
+        destinationRoot,
+      });
+      const pkg = JSON.parse(fs.read(join(destinationRoot, 'package.json')));
+
+      expect(Object.keys(pkg.devDependencies)).to.deep.equal(
+        [...Object.keys(pkg.devDependencies)].sort((a, b) =>
+          a.localeCompare(b, 'en'),
+        ),
+      );
+      // Sanity check: the pre-existing keys were genuinely unsorted
+      // relative to what eslint itself adds, so this isn't a vacuous pass.
+      expect(Object.keys(pkg.devDependencies)).to.include('mocha');
+      expect(Object.keys(pkg.devDependencies)).to.include('eslint');
     });
   });
 });
