@@ -54,6 +54,14 @@ describe('resolveNamespace', function () {
     );
   });
 
+  it('rejects a bare name that collides with an inherited Object.prototype property', function () {
+    // `input in PREFIX_ALIASES` would match 'toString' via the prototype
+    // chain even though it's not an own key, resolving to 'undefined:app'.
+    expect(() => resolveNamespace('toString', KNOWN_NAMESPACES)).to.throw(
+      /^Unknown generator 'toString'\. Run 'gen list'/,
+    );
+  });
+
   it('rejects an unknown alias:name pair', function () {
     expect(() => resolveNamespace('js:nonexistent', KNOWN_NAMESPACES)).to.throw(
       /Unknown generator/,

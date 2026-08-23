@@ -102,7 +102,7 @@ export function resolveNamespace(
   const colonIndex = input.indexOf(':');
 
   if (colonIndex === -1) {
-    if (input in PREFIX_ALIASES) {
+    if (Object.hasOwn(PREFIX_ALIASES, input)) {
       return validateNamespace(`${PREFIX_ALIASES[input]}:app`, knownNamespaces);
     }
 
