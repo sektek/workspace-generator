@@ -1,7 +1,0 @@
-module.exports = {
-<% if (language === 'typescript') { -%>
-  import: 'tsx/esm',
-<% } -%>
-  ui: 'bdd',
-  spec: ['**/*.spec.<%= language === 'typescript' ? 'ts' : 'js' %>'],
-};
