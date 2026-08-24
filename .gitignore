@@ -291,3 +291,14 @@ tmp/
 third-party/
 
 .worktrees/
+
+# Local clones of the sibling repos each of these used to be part of this
+# monorepo (sektek/generator, sektek/generator-test, sektek/generator-base,
+# sektek/generator-js, sektek/gen) — cloned in via scripts/clone-siblings.sh
+# for local cross-package dev, not tracked here. Same pattern as third-party/
+# above: gitignored, not a git submodule.
+libs/generator/
+libs/generator-test/
+generators/generator-base/
+generators/generator-js/
+tools/gen/
