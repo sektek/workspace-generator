@@ -96,6 +96,10 @@ Run from the repo root unless noted. First-time setup: `sh scripts/clone-sibling
 (the clones must exist before `npm install` can link them as workspaces). Do not use the root
 `npm run build` script or any `nx` command — `nx.json` is present but unused (see What this is).
 
+`workspace-generator.code-workspace` opens all 6 (this repo plus the 5 clones) as separate VS Code
+workspace folders — each keeps its own source control view/status despite living under this repo's
+directory tree, since they're independent git repos.
+
 - **Build a single package:** `npm run build --workspace=<pkg>` (e.g.
   `npm run build --workspace=@sektek/generator`), or `cd` into the package and run `npx tsc -p tsconfig.build.json`
 - **Build everything:** run the above for each package in dependency order — `libs/generator`,

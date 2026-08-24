@@ -1,0 +1,22 @@
+{
+  "folders": [
+    { "name": "workspace-generator", "path": "." },
+    { "name": "generator", "path": "libs/generator" },
+    { "name": "generator-test", "path": "libs/generator-test" },
+    { "name": "generator-base", "path": "generators/generator-base" },
+    { "name": "generator-js", "path": "generators/generator-js" },
+    { "name": "gen", "path": "tools/gen" }
+  ],
+  "settings": {
+    "mochaExplorer.esmLoader": true,
+    "mochaExplorer.nodeArgv": ["--import=tsx/esm"]
+  },
+  "extensions": {
+    "recommendations": [
+      "dbaeumer.vscode-eslint",
+      "EditorConfig.EditorConfig",
+      "esbenp.prettier-vscode",
+      "hbenl.vscode-mocha-test-adapter"
+    ]
+  }
+}
